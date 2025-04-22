@@ -47,6 +47,9 @@ venv/
 env/
 ENV/
 
+# Variables de entorno
+.env
+
 # Archivos IDE/Editor
 .vscode/
 .idea/

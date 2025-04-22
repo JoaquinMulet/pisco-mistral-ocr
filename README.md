@@ -1,232 +1,229 @@
 # PiscoMistralOcr
 
-[![PyPI version](https://badge.fury.io/py/pisco-mistral-ocr.svg)](https://badge.fury.io/py/pisco-mistral-ocr) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+PiscoMistralOcr is a user-friendly, asynchronous Python client library for interacting with the [Mistral AI OCR and Document Understanding APIs](https://docs.mistral.ai/capabilities/document_understanding/).
 
-PiscoMistralOcr es una biblioteca cliente Python asíncrona y fácil de usar para interactuar con las [APIs de OCR y Comprensión de Documentos de Mistral AI](https://docs.mistral.ai/capabilities/document_understanding/).
+It simplifies common tasks like extracting text from PDFs/images (via URL or local file) and asking questions about document content, transparently handling file uploads, API interactions, and **optional automatic file deletion**.
 
-Simplifica tareas comunes como extraer texto de PDFs/imágenes (a través de URL o archivo local) y hacer preguntas sobre el contenido de documentos, manejando cargas de archivos, interacciones con la API y **eliminación opcional de archivos** de manera transparente.
+## Features
 
-## Características
+* Fully asynchronous (`async`/`await`).
+* Simple interface: `ocr(source)` and `ask(source, question)`.
+* Automatic detection of URL vs. local file path for sources.
+* Handles file uploads and signed URL generation automatically.
+* **Option to automatically delete files from Mistral servers after processing.**
+* Typed responses using Pydantic models for an improved developer experience.
+* Robust error handling with custom exceptions.
+* Built on the excellent `httpx` library.
 
-* Completamente asíncrono (`async`/`await`).
-* Interfaz simple: `ocr(source)` y `ask(source, question)`.
-* Detección automática de URL vs. ruta de archivo local para las fuentes.
-* Maneja cargas de archivos y generación de URL firmadas automáticamente.
-* **Opción para eliminar automáticamente archivos del servidor Mistral después del procesamiento.**
-* Respuestas tipadas usando modelos Pydantic para una mejor experiencia de desarrollo.
-* Manejo robusto de errores con excepciones personalizadas.
-* Construido sobre la excelente biblioteca `httpx`.
-* Uso de `logging` para mejor visibilidad de operaciones.
+## Installation
 
-## Instalación
+**Note:** This library is not currently published on PyPI. You must install it directly from the GitHub repository.
+
+Use `pip` to install the latest version from the main branch:
 
 ```bash
-pip install pisco-mistral-ocr
-````
-
-## Requisitos Previos
-
-  * Python 3.8+
-  * Una clave de API de Mistral AI. Puedes obtener una en la [plataforma Mistral AI](https://console.mistral.ai/).
-  * **Configuración de la API Key:** La biblioteca busca la clave en la variable de entorno `MISTRAL_API_KEY`. Puedes:
-      * Establecer la variable de entorno en tu sistema:
-          * Linux/macOS: `export MISTRAL_API_KEY="TU_CLAVE_API_MISTRAL"`
-          * Windows (cmd): `set MISTRAL_API_KEY=TU_CLAVE_API_MISTRAL`
-          * Windows (PowerShell): `$env:MISTRAL_API_KEY="TU_CLAVE_API_MISTRAL"`
-      * Crear un archivo `.env` en el directorio de tu proyecto o uno superior con el contenido `MISTRAL_API_KEY=TU_CLAVE_API_MISTRAL` e instalar `python-dotenv` (`pip install python-dotenv`) para que tu script lo cargue (ver ejemplo abajo).
-      * Pasar la clave directamente al inicializar el cliente: `client = PiscoMistralOcrClient(api_key="TU_CLAVE_API_MISTRAL")`.
-
-## Cookbook: Uso Simple
-
-Así es como realizar tareas comunes con `PiscoMistralOcr`. Todas las llamadas a la API son asíncronas y deben ser esperadas con `await`.
-
-```python
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Ejemplo de uso de la librería PiscoMistralOcr actualizado.
-"""
-import asyncio
-import os
-import logging
-import pathlib
-from dotenv import load_dotenv # Necesario si usas .env
-from pisco_mistral_ocr import PiscoMistralOcrClient, PiscoMistralOcrError
-
-# --- Cargar .env (si existe) ---
-load_dotenv()
-
-# --- Configuración del Logging ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("PiscoMistralOcrExample")
-
-# --- Crear un archivo PDF ficticio para pruebas locales ---
-PDF_CONTENT = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Contents 4 0 R/Parent 2 0 R>>endobj\n4 0 obj<</Length 35>>stream\nBT /F1 24 Tf 100 700 Td (Hello Pisco!) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000010 00000 n \n0000000059 00000 n \n0000000118 00000 n \n0000000197 00000 n \ntrailer<</Size 5/Root 1 0 R>>\nstartxref\n269\n%%EOF"
-# Usar pathlib para manejar la ruta
-LOCAL_PDF_PATH = pathlib.Path("hello_pisco_readme_example.pdf")
-
-async def main():
-    """Función principal que demuestra el uso de PiscoMistralOcrClient."""
-    # Crear archivo de prueba
-    try:
-        LOCAL_PDF_PATH.write_bytes(PDF_CONTENT)
-        logger.info("Archivo PDF de prueba creado: %s", LOCAL_PDF_PATH)
-    except OSError as e:
-        logger.error("No se pudo crear el archivo PDF de prueba: %s", e)
-        return
-
-    logger.info("=== Ejemplo de uso de PiscoMistralOcr ===")
-    api_key_check = os.getenv("MISTRAL_API_KEY")
-    if not api_key_check:
-         logger.critical("MISTRAL_API_KEY no encontrada. Saliendo.")
-         # Limpiar archivo antes de salir si se creó
-         if LOCAL_PDF_PATH.exists(): LOCAL_PDF_PATH.unlink()
-         return
-
-    try:
-        # Inicializar el cliente usando 'async with' para gestión automática
-        async with PiscoMistralOcrClient() as client:
-            try:
-                # === 1. OCR desde Archivo Local (con Auto-Eliminación) ===
-                logger.info("\n--- 1. OCR desde Archivo Local (con Auto-Eliminación) ---")
-                ocr_result_file = await client.ocr(
-                    str(LOCAL_PDF_PATH), # Convertir Path a string
-                    delete_after_processing=True # <-- ¡Activado!
-                )
-                logger.info("OCR de archivo local completado (archivo eliminado del servidor).")
-                if ocr_result_file.pages:
-                    print("\nContenido Markdown OCR (Archivo Local, Página 0):")
-                    print("-" * 30)
-                    print(ocr_result_file.pages[0].markdown)
-                    print("-" * 30)
-                else:
-                    logger.warning("El resultado OCR local no contiene páginas.")
-
-                # === 2. Preguntar sobre Archivo Local (con Auto-Eliminación) ===
-                logger.info("\n--- 2. Preguntar sobre Archivo Local (con Auto-Eliminación) ---")
-                question_local = "¿Qué texto está presente en este documento?"
-                logger.info("Pregunta: %s", question_local)
-                ask_result_file = await client.ask(
-                    str(LOCAL_PDF_PATH),
-                    question_local,
-                    delete_after_processing=True # <-- ¡Activado!
-                )
-                logger.info("Pregunta sobre archivo local completada (archivo eliminado del servidor).")
-                if ask_result_file.choices:
-                    answer_local = ask_result_file.choices[0].message.content
-                    print("\nRespuesta (Archivo Local):")
-                    print("-" * 30)
-                    print(answer_local)
-                    print("-" * 30)
-                else:
-                    logger.warning("La respuesta Ask local no contiene choices.")
-
-                # === 3. OCR desde URL Específica ===
-                logger.info("\n--- 3. OCR desde URL Específica ---")
-                example_url = "[https://www.buds.com.ua/images/Lorem_ipsum.pdf](https://www.buds.com.ua/images/Lorem_ipsum.pdf)"
-                logger.info("Procesando URL: %s", example_url)
-                ocr_result_url = await client.ocr(example_url)
-                # delete_after_processing no aplica a URLs
-                logger.info("OCR de URL completado.")
-                if ocr_result_url.pages:
-                    print("\nContenido Markdown OCR (URL, Página 0, Primeros 500 chars):")
-                    print("-" * 30)
-                    print(ocr_result_url.pages[0].markdown[:500] + "...")
-                    print("-" * 30)
-                else:
-                    logger.warning("El resultado OCR de URL no contiene páginas.")
-
-                # === 4. Preguntar sobre URL Específica ===
-                logger.info("\n--- 4. Preguntar sobre URL Específica ---")
-                question_url = "¿De qué trata este documento?"
-                logger.info("Procesando URL: %s", example_url)
-                logger.info("Pregunta: %s", question_url)
-                ask_result_url = await client.ask(example_url, question_url)
-                # delete_after_processing no aplica a URLs
-                logger.info("Pregunta sobre URL completada.")
-                if ask_result_url.choices:
-                    answer_url = ask_result_url.choices[0].message.content
-                    print("\nRespuesta (URL):")
-                    print("-" * 30)
-                    print(answer_url)
-                    print("-" * 30)
-                else:
-                    logger.warning("La respuesta Ask de URL no contiene choices.")
-
-            except PiscoMistralOcrError as e:
-                logger.error("Ocurrió un error durante la operación con la API: %s", e, exc_info=True)
-                if hasattr(e, 'status_code'): logger.error("Código de estado HTTP: %s", e.status_code)
-                if hasattr(e, 'error_details'): logger.error("Detalles del error API: %s", e.error_details)
-            except Exception as e:
-                logger.critical("Ocurrió un error inesperado no controlado: %s", e, exc_info=True)
-
-    except Exception as e:
-        logger.critical("Error al inicializar PiscoMistralOcrClient: %s", e, exc_info=True)
-    finally:
-        # Limpiar el archivo ficticio local SIEMPRE
-        if LOCAL_PDF_PATH.exists():
-            try:
-                LOCAL_PDF_PATH.unlink() # Usar unlink() para Path
-                logger.info("Archivo de prueba local %s eliminado.", LOCAL_PDF_PATH)
-            except OSError as e:
-                logger.error("No se pudo eliminar el archivo de prueba local %s: %s", LOCAL_PDF_PATH, e)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
+pip install git+[https://github.com/JoaquinMulet/pisco-mistral-ocr.git](https://github.com/JoaquinMulet/pisco-mistral-ocr.git)
 ```
 
-## Eliminación Automática de Archivos (Buena Práctica)
+(Ensure you have `git` installed on your system.)
 
-Cuando procesas archivos locales usando los métodos `.ocr(ruta_archivo, ...)` o `.ask(ruta_archivo, ...)`, la biblioteca sube primero el archivo a los servidores de Mistral. Estos archivos permanecen en sus servidores a menos que se eliminen explícitamente.
+## Prerequisites
 
-Para **eliminar automáticamente** el archivo subido de los servidores de Mistral inmediatamente después de que la operación de OCR o Ask se complete (o falle después de la subida), utiliza el flag `delete_after_processing=True`:
+  * Python 3.8+
+  * A Mistral AI API Key (see "Detailed API Key Setup" below).
+  * `git` installed on your system (for GitHub installation).
+
+-----
+
+## Cookbook: Ultra-Simple Usage
+
+These examples showcase the core library usage with minimal code. They assume your `MISTRAL_API_KEY` is configured and that file paths/URLs are valid.
+
+**Important:** All code using `await` must be run inside an `async` function using `asyncio.run()`.
 
 ```python
 import asyncio
 from pisco_mistral_ocr import PiscoMistralOcrClient
 
-async def process_and_delete(file_path):
+# --- 1. OCR a local file (with auto-delete) ---
+async def ocr_local_file():
+    file_path = "path/to/your/document.pdf"
     async with PiscoMistralOcrClient() as client:
-        # Procesar el archivo local y eliminarlo de Mistral después
-        result = await client.ocr(file_path, delete_after_processing=True)
-        print("OCR procesado. El archivo debería estar eliminado de Mistral.")
-        # ... usar resultado ...
+        ocr_result = await client.ocr(file_path, delete_after_processing=True)
+        extracted_text = ocr_result.pages[0].markdown
 
-        # Similar para ask:
-        answer = await client.ask(file_path, "Pregunta?", delete_after_processing=True)
-        print("Ask procesado. El archivo debería estar eliminado de Mistral.")
-        # ... usar respuesta ...
 
-# asyncio.run(process_and_delete("ruta/a/tu/documento.pdf"))
+# --- 2. Ask a question about a local file (with auto-delete) ---
+async def ask_local_file():
+    file_path = "path/to/your/image.png" 
+    question = "What is this about?"
+    async with PiscoMistralOcrClient() as client:
+        ask_result = await client.ask(
+            file_path,
+            question,
+            delete_after_processing=True
+        )
+        answer = ask_result.choices[0].message.content
+
+# --- 3. OCR from a URL ---
+async def ocr_url():
+    doc_url = "[https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf](https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf)"
+    async with PiscoMistralOcrClient() as client:
+        ocr_result = await client.ocr(doc_url)
+        extracted_text_url = ocr_result.pages[0].markdown
+
+# --- 4. Ask a question about a URL ---
+async def ask_url():
+    doc_url = "[https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf](https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf)"
+    question = "What is the summary?"
+    async with PiscoMistralOcrClient() as client:
+        ask_result = await client.ask(doc_url, question)
+        answer_url = ask_result.choices[0].message.content
+
+# --- How to run (basic example) ---
+async def main():
+    await ocr_local_file()
+    await ask_local_file()
+    await ocr_url()
+    await ask_url()
+
+if __name__ == "__main__":
+    # --- REQUIRED SETUP BEFORE RUNNING! ---
+    # 1. Set your MISTRAL_API_KEY environment variable or use .env.
+    # 2. Modify the file paths/URLs inside the example functions above.
+    # ---------------------------------------
+    try:
+        asyncio.run(main())
+    except ImportError:
+         print("Error: Install the library first: pip install git+[https://github.com/JoaquinMulet/pisco-mistral-ocr.git](https://github.com/JoaquinMulet/pisco-mistral-ocr.git)")
+    except Exception as e:
+         print(f"\nError during execution: {e}")
+         print("Verify your API key, file paths/URLs, and internet connection.")
+
+
+# NOTE ON PRODUCTION CODE:
+# These examples are extremely minimal for clarity. Real-world applications MUST:
+# 1. Check if results were actually returned (e.g., verify that `result.pages`
+#    or `result.choices` are not empty) before accessing their elements.
+# 2. Implement robust error handling using try/except blocks (see "Error Handling").
 ```
 
-**¿Por qué usar `delete_after_processing=True`?**
+-----
 
-  * **Privacidad de Datos:** Evita dejar documentos potencialmente sensibles en los servidores de Mistral más tiempo del necesario.
-  * **Gestión de Recursos:** Mantiene limpio tu almacenamiento de archivos en la plataforma Mistral.
-  * **Costos:** Podría prevenir posibles costos futuros de almacenamiento si fueran aplicables.
+## Automatic File Deletion (Best Practice)
 
-Generalmente se recomienda activar este flag (`True`) al procesar archivos locales, a menos que tengas una razón específica para mantener el archivo en los servidores de Mistral.
+When processing **local files** (`.pdf`, `.png`, etc.) with `ocr()` or `ask()`, the library uploads them to Mistral AI servers. To **automatically delete** these files from their servers immediately after processing, simply add `delete_after_processing=True` to the call:
 
-La biblioteca también proporciona un método manual `client.delete_file(file_id)`, pero usar el flag es típicamente más simple para el flujo de trabajo estándar.
+```python
+# Example inside an async function:
+async with PiscoMistralOcrClient() as client:
+    # OCR and delete
+    await client.ocr("path/to/local/file.pdf", delete_after_processing=True)
+    print("File processed with OCR and deleted from Mistral server.")
 
-## Manejo de errores
+    # Ask and delete
+    await client.ask("path/to/local/image.png", "Question?", delete_after_processing=True)
+    print("File processed with Ask and deleted from Mistral server.")
 
-La biblioteca utiliza excepciones personalizadas que heredan de `PiscoMistralOcrError`:
+```
 
-  * `ConfigurationError`: Para problemas como una clave de API faltante.
-  * `FileError`: Para problemas al leer archivos locales.
-  * `NetworkError`: Para problemas de red durante las llamadas a la API (tiempos de espera, errores de conexión).
-  * `ApiError`: Cuando la API de Mistral devuelve un error (por ejemplo, códigos de estado 4xx, 5xx). Contiene atributos `status_code` y `error_details`.
+**Why use `delete_after_processing=True`?**
 
-Envuelve tus llamadas en un bloque `try...except PiscoMistralOcrError` para manejar posibles problemas de manera elegante.
+  * **Data Privacy:** Avoid leaving potentially sensitive documents on external servers longer than necessary.
+  * **Resource Management:** Keep your file storage on the Mistral platform tidy.
+  * **Potential Costs:** May prevent future storage costs if applicable.
 
-## Contribuir
+It is generally **recommended to use `delete_after_processing=True` when processing local files**, unless you have a specific reason to keep the file on Mistral's servers. This option does *not* apply when providing a URL, as the library does not upload the file in that case.
 
-¡Las contribuciones son bienvenidas\! Por favor, abre un issue o envía un pull request en el [repositorio de GitHub](https://github.com/tu_usuario/pisco-mistral-ocr). \#\# Licencia
+-----
 
-Este proyecto está licenciado bajo la Licencia MIT - consulta el archivo [LICENSE](https://www.google.com/search?q=LICENSE) para más detalles.
+## Detailed API Key Setup (Prerequisite)
+
+The library requires your Mistral AI API key to function. It looks for the key in the `MISTRAL_API_KEY` environment variable. You have several options for setting it up:
+
+1.  **Environment Variable (Recommended):**
+
+      * Linux/macOS (terminal):
+        ```bash
+        export MISTRAL_API_KEY="YOUR_MISTRAL_API_KEY"
+        ```
+      * Windows (cmd):
+        ```cmd
+        set MISTRAL_API_KEY=YOUR_MISTRAL_API_KEY
+        ```
+      * Windows (PowerShell):
+        ```powershell
+        $env:MISTRAL_API_KEY="YOUR_MISTRAL_API_KEY"
+        ```
+      * *Note: These commands set it only for the current terminal session. To make it permanent, consult your OS documentation on setting environment variables.*
+
+2.  **`.env` File:**
+
+      * Create a file named `.env` in your project's root directory.
+      * Add the line: `MISTRAL_API_KEY=YOUR_MISTRAL_API_KEY`
+      * Install the `python-dotenv` library: `pip install python-dotenv`
+      * Load the file at the beginning of your Python script:
+        ```python
+        from dotenv import load_dotenv
+        load_dotenv()
+        ```
+
+3.  **Directly in Code (Less Secure):**
+
+      * You can pass the key when initializing the client. **Avoid this if you share your code.**
+        ```python
+        client = PiscoMistralOcrClient(api_key="YOUR_MISTRAL_API_KEY")
+        # async with client: ...
+        ```
+
+Obtain your API key from the [Mistral AI platform](https://console.mistral.ai/).
+
+-----
+
+## Error Handling
+
+The library uses custom exceptions inheriting from `PiscoMistralOcrError`:
+
+  * `ConfigurationError`: For issues like a missing API key.
+  * `FileError`: For problems reading local files (e.g., not found).
+  * `NetworkError`: For network issues during API calls (timeouts, connection errors).
+  * `ApiError`: When the Mistral API returns an error (e.g., 4xx, 5xx status codes). Contains `status_code` and `error_details` attributes.
+
+For robust code, wrap API calls in `try...except` blocks:
+
+```python
+import asyncio
+from pisco_mistral_ocr import PiscoMistralOcrClient, PiscoMistralOcrError
+
+async def ocr_with_error_handling(file_path):
+    try:
+        async with PiscoMistralOcrClient() as client:
+            result = await client.ocr(file_path, delete_after_processing=True)
+            if result.pages:
+                print("OCR successful:", result.pages[0].markdown[:100] + "...")
+            else:
+                print("OCR completed but returned no pages.")
+    except FileNotFoundError:
+        print(f"Error: File not found at {file_path}")
+    except PiscoMistralOcrError as e:
+        # Handle specific library errors
+        print(f"Library Error: {e}")
+        if hasattr(e, 'status_code'): print(f"HTTP Status Code: {e.status_code}")
+        if hasattr(e, 'error_details'): print(f"API Error Details: {e.error_details}")
+    except Exception as e:
+        # Handle any other unexpected errors
+        print(f"An unexpected error occurred: {e}")
+
+# Example of how to call it:
+# asyncio.run(ocr_with_error_handling("path/to/nonexistent/file.pdf"))
+# asyncio.run(ocr_with_error_handling("path/to/your/real/file.pdf")) # Test with a valid path
+```
+
+## Contributing
+
+Contributions are welcome\! Please open an issue or submit a pull request on the [GitHub repository](https://www.google.com/search?q=https://github.com/JoaquinMulet/pisco-mistral-ocr).
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.

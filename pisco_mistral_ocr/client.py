@@ -210,14 +210,13 @@ class PiscoMistralOcrClient:
             logger.exception("Unexpected error during file deletion for %s.", file_id)
             raise PiscoMistralOcrError(f"Unexpected error deleting file {file_id}: {e}") from e
 
-
-    # MODIFICADO: Añadir delete_after_processing y bloque finally
+    
     async def ocr(
         self,
         source: str,
         model: Optional[str] = None,
-        include_image_base64: bool = False,
-        delete_after_processing: bool = False, # Nuevo parámetro
+        include_image_base64: bool = True,
+        delete_after_processing: bool = True, # Nuevo parámetro
     ) -> OcrResult:
         """ Performs OCR... (docstring sin cambios excepto añadir el nuevo parámetro) """
         model = model or self.default_ocr_model
